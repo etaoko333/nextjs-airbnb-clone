@@ -1,8 +1,26 @@
-version: "3"
+version: '3.8'
+
 services:
+  admin-ui:
+    build:
+      context: ./admin-ui
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./admin-ui:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+    depends_on:
+      - server
+    networks:
+      - app-network
+
   server:
     build:
-      context: .
+      context: ./server
+      dockerfile: Dockerfile
       args:
         NPM_LOG_LEVEL: notice
     ports:
@@ -14,19 +32,26 @@ services:
       DB_URL: postgres://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_NAME}
     depends_on:
       - migrate
+    networks:
+      - app-network
+
   migrate:
     build:
-      context: .
+      context: ./server
+      dockerfile: Dockerfile
       args:
         NPM_LOG_LEVEL: notice
     command: npm run db:init
-    working_dir: /app/server
+    working_dir: /app
     environment:
       BCRYPT_SALT: ${BCRYPT_SALT}
       DB_URL: postgres://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_NAME}
     depends_on:
       db:
         condition: service_healthy
+    networks:
+      - app-network
+
   db:
     image: postgres:12
     ports:
@@ -44,5 +69,12 @@ services:
       timeout: 45s
       interval: 10s
       retries: 10
+    networks:
+      - app-network
+
 volumes:
-  postgres: ~
+  postgres:
+
+networks:
+  app-network:
+    driver: bridge
