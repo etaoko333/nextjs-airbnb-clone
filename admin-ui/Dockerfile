@@ -17,6 +17,9 @@ COPY package*.json ./
 # Install dependencies and update Browserslist
 RUN npm install && npx update-browserslist-db@latest
 
+# Install the missing Babel plugin
+RUN npm install --save-dev @babel/plugin-proposal-private-property-in-object  <-- Add this line
+
 # copy over the code base
 COPY . .
 
