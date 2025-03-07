@@ -1,0 +1,148 @@
+pipeline {
+    agent any
+
+    tools {
+        jdk 'jdk17'
+        nodejs 'node16'
+    }
+
+    environment {
+        SCANNER_HOME = tool 'sonar-scanner'
+        FRONTEND_IMAGE = 'sholly333/airbnb-app-frontend:latest' // Define your frontend image name
+        BACKEND_IMAGE = 'sholly333/airbnb-app-backend:latest'   // Define your backend image name
+    }
+
+    stages {
+        stage('Clean Workspace') {
+            steps {
+                cleanWs()
+            }
+        }
+
+        stage('Checkout from Git') {
+            steps {
+                git branch: 'master', url: 'https://github.com/etaoko333/Airbnb-App.git'
+            }
+        }
+
+        stage('SonarQube Analysis') {
+            steps {
+                withSonarQubeEnv('sonar-server') {
+                    sh ''' 
+                    $SCANNER_HOME/bin/sonar-scanner \
+                        -Dsonar.projectName=Airbnb-App \
+                        -Dsonar.projectKey=Airbnb-App
+                    '''
+                }
+            }
+        }
+
+        stage('Quality Gate') {
+            steps {
+                timeout(time: 1, unit: 'HOURS') {
+                    waitForQualityGate abortPipeline: false, credentialsId: 'sonar-token'
+                }
+            }
+        }
+
+        stage('Install NPM Dependencies') {
+            steps {
+                sh 'npm install'
+            }
+        }
+
+        stage('Trivy FS Scan') {
+            steps {
+                sh 'trivy fs . > trivyfs.txt'
+            }
+        }
+
+        // Docker Stages
+        stage('Build Frontend Image') {
+            steps {
+                script {
+                    sh "docker build -t ${FRONTEND_IMAGE} -f admin-ui/Dockerfile ./admin-ui"
+                    sh "docker push ${FRONTEND_IMAGE}"
+                }
+            }
+        }
+
+        stage('Build Backend Image') {
+            steps {
+                script {
+                    sh "docker build -t ${BACKEND_IMAGE} -f server/Dockerfile ./server"
+                    sh "docker push ${BACKEND_IMAGE}"
+                }
+            }
+        }
+
+        stage('Trivy Image Scan') {
+            steps {
+                sh "trivy image --scanners vuln --format table -o image.html ${FRONTEND_IMAGE}"
+                sh "trivy image --scanners vuln --format table -o image.html ${BACKEND_IMAGE}"
+            }
+        }
+
+        stage('Docker Push Image') {
+            steps {
+                script {
+                    withDockerRegistry(credentialsId: 'docker-cred', toolName: 'docker') {
+                        sh "docker push ${FRONTEND_IMAGE}"
+                        sh "docker push ${BACKEND_IMAGE}"
+                    }
+                }
+            }
+        }
+
+        stage('K8s-Deploy') {
+            steps {
+                withKubeConfig(caCertificate: '', clusterName: 'devopsola-cluster', contextName: '', credentialsId: 'k8-cred', namespace: 'webapps', restrictKubeConfigAccess: false, serverUrl: 'https://C237C0103DF0D7B349ED061646E2EF7E.gr7.us-west-1.eks.amazonaws.com') {
+                    sh "kubectl apply -f deployment-service.yml"
+                    sleep 20
+                }
+            }
+        }
+
+        stage('Verify Deployment') {
+            steps {
+                withKubeConfig(caCertificate: '', clusterName: 'devopsola-cluster', contextName: '', credentialsId: 'k8-cred', namespace: 'webapps', restrictKubeConfigAccess: false, serverUrl: 'https://C237C0103DF0D7B349ED061646E2EF7E.gr7.us-west-1.eks.amazonaws.com') {
+                    sh "kubectl get pods"
+                    sh "kubectl get service"
+                }
+            }
+        }
+    } // Closing stages
+
+    post {
+        always {
+            script {
+                def jobName = env.JOB_NAME
+                def buildNumber = env.BUILD_NUMBER
+                def pipelineStatus = currentBuild.result ?: 'UNKNOWN'
+                def bannerColor = pipelineStatus.toUpperCase() == 'SUCCESS' ? 'green' : 'red'
+
+                def body = """
+                <body>
+                    <div style="border: 2px solid ${bannerColor}; padding: 10px;">
+                        <h3 style="color: ${bannerColor};">
+                            Pipeline Status: ${pipelineStatus.toUpperCase()}
+                        </h3>
+                        <p>Job: ${jobName}</p>
+                        <p>Build Number: ${buildNumber}</p>
+                        <p>Status: ${pipelineStatus.toUpperCase()}</p>
+                    </div>
+                </body>
+                """
+
+                emailext(
+                    subject: "${jobName} - Build ${buildNumber} - ${pipelineStatus.toUpperCase()}",
+                    body: body,
+                    to: 'alongemiracle333@gmail.com',
+                    from: 'jenkins@example.com',
+                    replyTo: 'jenkins@example.com',
+                    mimeType: 'text/html'
+                )
+            }
+        }
+    } // Closing post
+}
