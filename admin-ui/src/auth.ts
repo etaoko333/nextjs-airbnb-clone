@@ -1,34 +1,92 @@
-import { EventEmitter } from "events";
-import { CREDENTIALS_LOCAL_STORAGE_ITEM } from "./constants";
-import { Credentials } from "./types";
+import React, { useEffect, useState } from "react";
+import { Admin, DataProvider, Resource, Login } from "react-admin";
+import buildGraphQLProvider from "./data-provider/graphqlDataProvider";
+import { theme } from "./theme/theme";
+import { Redirect } from "react-router-dom";
+import Dashboard from "./pages/Dashboard";
+import { UserList } from "./user/UserList";
+import { UserCreate } from "./user/UserCreate";
+import { UserEdit } from "./user/UserEdit";
+import { UserShow } from "./user/UserShow";
+import { ListingList } from "./listing/ListingList";
+import { ListingCreate } from "./listing/ListingCreate";
+import { ListingEdit } from "./listing/ListingEdit";
+import { ListingShow } from "./listing/ListingShow";
+import { WishlistList } from "./wishlist/WishlistList";
+import { WishlistCreate } from "./wishlist/WishlistCreate";
+import { WishlistEdit } from "./wishlist/WishlistEdit";
+import { WishlistShow } from "./wishlist/WishlistShow";
+import { TripList } from "./trip/TripList";
+import { TripCreate } from "./trip/TripCreate";
+import { TripEdit } from "./trip/TripEdit";
+import { TripShow } from "./trip/TripShow";
+import { jwtAuthProvider } from "./auth-provider/ra-auth-jwt";
+import { getCredentials, removeCredentials, isAuthenticated } from "./auth-helper";  // Import auth helpers
 
-const eventEmitter = new EventEmitter();
+const App = (): React.ReactElement => {
+  const [dataProvider, setDataProvider] = useState<DataProvider | null>(null);
+  const [isUserAuthenticated, setIsUserAuthenticated] = useState(isAuthenticated());
 
-export function isAuthenticated(): boolean {
-  return Boolean(getCredentials());
-}
+  useEffect(() => {
+    buildGraphQLProvider
+      .then((provider: any) => {
+        setDataProvider(() => provider);
+      })
+      .catch((error: any) => {
+        console.log(error);
+      });
+  }, []);
 
-export function listen(listener: (authenticated: boolean) => void): void {
-  eventEmitter.on("change", () => {
-    listener(isAuthenticated());
-  });
-}
-
-export function setCredentials(credentials: Credentials) {
-  localStorage.setItem(
-    CREDENTIALS_LOCAL_STORAGE_ITEM,
-    JSON.stringify(credentials)
-  );
-}
-
-export function getCredentials(): Credentials | null {
-  const raw = localStorage.getItem(CREDENTIALS_LOCAL_STORAGE_ITEM);
-  if (raw === null) {
-    return null;
+  // If not authenticated, redirect to login
+  if (!isUserAuthenticated) {
+    return <Redirect to="/login" />;
   }
-  return JSON.parse(raw);
-}
 
-export function removeCredentials(): void {
-  localStorage.removeItem(CREDENTIALS_LOCAL_STORAGE_ITEM);
-}
+  if (!dataProvider) {
+    return <div>Loading...</div>;
+  }
+
+  return (
+    <div className="App">
+      <Admin
+        title={"airbnb-server"}
+        dataProvider={dataProvider}
+        authProvider={jwtAuthProvider}
+        theme={theme}
+        dashboard={Dashboard}
+        loginPage={Login}
+      >
+        <Resource
+          name="User"
+          list={UserList}
+          edit={UserEdit}
+          create={UserCreate}
+          show={UserShow}
+        />
+        <Resource
+          name="Listing"
+          list={ListingList}
+          edit={ListingEdit}
+          create={ListingCreate}
+          show={ListingShow}
+        />
+        <Resource
+          name="Wishlist"
+          list={WishlistList}
+          edit={WishlistEdit}
+          create={WishlistCreate}
+          show={WishlistShow}
+        />
+        <Resource
+          name="Trip"
+          list={TripList}
+          edit={TripEdit}
+          create={TripCreate}
+          show={TripShow}
+        />
+      </Admin>
+    </div>
+  );
+};
+
+export default App;
