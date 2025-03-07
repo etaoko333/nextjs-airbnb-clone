@@ -1,9 +1,8 @@
 import React, { useEffect, useState } from "react";
-import { Admin, DataProvider, Resource } from "react-admin";
+import { Admin, DataProvider, Resource, Login } from "react-admin";
 import buildGraphQLProvider from "./data-provider/graphqlDataProvider";
 import { theme } from "./theme/theme";
-import Login from "./Login";
-import "./App.scss";
+import { Redirect } from "react-router-dom";
 import Dashboard from "./pages/Dashboard";
 import { UserList } from "./user/UserList";
 import { UserCreate } from "./user/UserCreate";
@@ -25,7 +24,17 @@ import { jwtAuthProvider } from "./auth-provider/ra-auth-jwt";
 
 const App = (): React.ReactElement => {
   const [dataProvider, setDataProvider] = useState<DataProvider | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+
+  // Check if the JWT token exists when the component mounts
   useEffect(() => {
+    const token = localStorage.getItem("jwtToken");
+    if (token) {
+      setIsAuthenticated(true);
+    } else {
+      setIsAuthenticated(false);
+    }
+
     buildGraphQLProvider
       .then((provider: any) => {
         setDataProvider(() => provider);
@@ -34,9 +43,16 @@ const App = (): React.ReactElement => {
         console.log(error);
       });
   }, []);
+
   if (!dataProvider) {
-    return <div>Loading</div>;
+    return <div>Loading...</div>;
   }
+
+  // If not authenticated, redirect to login page
+  if (!isAuthenticated) {
+    return <Redirect to="/login" />;
+  }
+
   return (
     <div className="App">
       <Admin
