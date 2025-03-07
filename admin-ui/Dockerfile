@@ -14,8 +14,8 @@ WORKDIR /app
 # and the package-lock.json are copied over
 COPY package*.json ./
 
-# installs packages and their dependencies
-RUN npm install
+# Install dependencies and update Browserslist
+RUN npm install && npx update-browserslist-db@latest
 
 # copy over the code base
 COPY . .
