@@ -14,11 +14,17 @@ const Login = ({ theme }: any) => {
   const login = useLogin();
   const notify = useNotify();
   const BASE_URI = process.env.REACT_APP_SERVER_URL;
+
   const submit = (e: any) => {
     e.preventDefault();
-    login({ username, password }).catch(() =>
-      notify("Invalid username or password")
-    );
+    login({ username, password })
+      .then((response) => {
+        // Assuming the JWT token is in response.data.token, adjust based on your actual response structure
+        const token = response.data.token;
+        // Store the JWT token in localStorage
+        localStorage.setItem('jwtToken', token);
+      })
+      .catch(() => notify("Invalid username or password"));
   };
 
   return (
@@ -57,7 +63,6 @@ const Login = ({ theme }: any) => {
             <form onSubmit={submit}>
               <label>
                 <span>Username</span>
-
                 <input
                   name="username"
                   type="textbox"
@@ -67,7 +72,6 @@ const Login = ({ theme }: any) => {
               </label>
               <label>
                 <span>Password</span>
-
                 <input
                   name="password"
                   type="password"
